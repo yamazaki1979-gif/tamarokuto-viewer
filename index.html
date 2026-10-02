@@ -1,0 +1,577 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>nayuta 多摩六都 天井演出ビュー</title>
+<style>
+:root{
+  --bg:#101216; --panel:#1a1e26cc; --line:#2c3340;
+  --fg:#e8ebf0; --dim:#8b93a3; --accent:#57b8ff;
+  color-scheme: dark;
+}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font-family:"Hiragino Kaku Gothic ProN","Zen Kaku Gothic New",system-ui,sans-serif;overflow:hidden}
+#app{position:fixed;inset:0}
+canvas{display:block;touch-action:none}
+.bar{position:fixed;left:12px;right:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:5}
+#top{top:calc(10px + env(safe-area-inset-top,0px))}
+#bottom{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.chip{background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);
+  border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--fg);cursor:pointer;user-select:none}
+.chip:hover{border-color:var(--accent)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.chip.on{background:#274a63;border-color:var(--accent)}
+#brand{font-weight:700;letter-spacing:.04em;cursor:default;display:flex;gap:8px;align-items:baseline}
+#brand small{color:var(--dim);font-weight:400}
+#brand:hover{border-color:var(--line)}
+#hint{position:fixed;right:12px;bottom:calc(56px + env(safe-area-inset-bottom,0px));
+  color:var(--dim);font-size:11px;text-align:right;z-index:4;pointer-events:none;line-height:1.7}
+#drop{position:fixed;inset:0;display:none;place-items:center;z-index:20;
+  background:#101216dd;border:3px dashed var(--accent);font-size:18px}
+#drop.show{display:grid}
+#meta{color:var(--dim);font-size:11.5px;padding:7px 4px;cursor:default}
+input[type=file]{display:none}
+#pad{position:fixed;right:12px;bottom:calc(60px + env(safe-area-inset-bottom,0px));
+  display:grid;grid-template-columns:1fr 1fr;gap:6px;z-index:6;width:150px}
+.pbtn{background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);
+  border-radius:8px;padding:10px 0;font-size:12.5px;text-align:center;cursor:pointer;user-select:none;
+  -webkit-user-select:none;touch-action:none}
+.pbtn:active{background:#274a63;border-color:var(--accent)}
+@media (max-width:520px){ #hint{display:none} .chip{padding:8px 10px} #pad{width:132px} }
+</style>
+
+<div id="app"></div>
+<div class="bar" id="top">
+  <span class="chip" id="brand">nayuta 多摩六都 天井演出 <small>Blender v02より変換｜YBJ Stage Viewer</small></span>
+  <label class="chip" for="file">図面3Dを開く (glb/obj/stl)</label>
+  <input type="file" id="file" accept=".glb,.gltf,.obj,.stl">
+  <span class="chip" id="demoBtn">デモ会場に戻す</span>
+</div>
+<div class="bar" id="bottom">
+  <span class="chip viewbtn" data-v="foh">FOH</span>
+  <span class="chip viewbtn" data-v="top">真上</span>
+  <span class="chip viewbtn" data-v="kami">上手</span>
+  <span class="chip viewbtn" data-v="shimo">下手</span>
+  <span class="chip viewbtn" data-v="stage">舞台から客席</span>
+  <span class="chip" id="wire">ワイヤー</span>
+  <span class="chip on" id="grid">グリッド900</span>
+  <span class="chip" id="fs">全画面</span>
+  <span id="meta"></span>
+</div>
+<div id="hint">ドラッグ=見回し ／ 右ドラッグ・2本指=平行移動 ／ ホイール・ピンチ=ズーム<br>キーボード: W/S=前進後進 A/D=左右移動 ←→=回転 Q/E=高さ R/F=首上げ下げ<br>glb/obj/stlをドロップで読み込み</div>
+<div id="drop">ここにドロップして読み込み</div>
+<div id="pad">
+  <span class="pbtn" data-a="fwd">前進</span>
+  <span class="pbtn" data-a="back">後進</span>
+  <span class="pbtn" data-a="strafeL">← 左移動</span>
+  <span class="pbtn" data-a="strafeR">右移動 →</span>
+  <span class="pbtn" data-a="left">⟲ 回転</span>
+  <span class="pbtn" data-a="right">回転 ⟳</span>
+  <span class="pbtn" data-a="up">高さ＋</span>
+  <span class="pbtn" data-a="down">高さ−</span>
+  <span class="pbtn" data-a="tiltup">首上げ</span>
+  <span class="pbtn" data-a="tiltdown">首下げ</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+try{ window.createImageBitmap = undefined; }catch(e){}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lights/RectAreaLightUniformsLib.js"></script>
+<script>
+(function(){
+"use strict";
+var app=document.getElementById('app');
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.0;
+renderer.physicallyCorrectLights=true;
+app.appendChild(renderer.domElement);
+
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x101216);
+scene.fog=new THREE.Fog(0x101216,70,180);
+
+var camera=new THREE.PerspectiveCamera(50,1,0.05,500);
+
+var controls=(function(el){
+  var tgt=new THREE.Vector3(0,2,0);
+  var sph=new THREE.Spherical(30,1.1,0);
+  var MINP=0.05, MAXP=Math.PI*0.95;
+  function apply(){
+    sph.phi=Math.max(MINP,Math.min(MAXP,sph.phi));
+    sph.radius=Math.max(1.2,Math.min(140,sph.radius));
+    var o=new THREE.Vector3().setFromSpherical(sph);
+    camera.position.copy(tgt).add(o);
+    camera.lookAt(tgt);
+  }
+  function setFromCamera(){
+    var off=camera.position.clone().sub(tgt);
+    sph.setFromVector3(off);
+    apply();
+  }
+  var ptrs={},lastPinch=0,lastMid=null;
+  function pan(dx,dy){
+    var h=el.clientHeight||1;
+    var scale=2*sph.radius*Math.tan(camera.fov*Math.PI/360)/h;
+    var right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0);
+    var up=new THREE.Vector3().setFromMatrixColumn(camera.matrix,1);
+    tgt.addScaledVector(right,-dx*scale).addScaledVector(up,dy*scale);
+    apply();
+  }
+  function rot(dx,dy){
+    var h=el.clientHeight||1;
+    sph.theta-=2*Math.PI*dx/h;
+    sph.phi-=2*Math.PI*dy/h;
+    apply();
+  }
+  el.addEventListener('pointerdown',function(e){
+    el.setPointerCapture&&el.setPointerCapture(e.pointerId);
+    ptrs[e.pointerId]={x:e.clientX,y:e.clientY,b:e.button};
+    e.preventDefault();
+  });
+  el.addEventListener('pointermove',function(e){
+    var p=ptrs[e.pointerId];if(!p)return;
+    var ids=Object.keys(ptrs);
+    var dx=e.clientX-p.x,dy=e.clientY-p.y;
+    p.x=e.clientX;p.y=e.clientY;
+    if(ids.length===2){
+      var a=ptrs[ids[0]],b=ptrs[ids[1]];
+      var dist=Math.hypot(a.x-b.x,a.y-b.y);
+      var mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      if(lastPinch>0){sph.radius*=lastPinch/dist;}
+      if(lastMid){pan(mid.x-lastMid.x,mid.y-lastMid.y);}
+      lastPinch=dist;lastMid=mid;apply();
+    }else if(p.b===2||e.shiftKey){pan(dx,dy);}
+    else{rot(dx,dy);}
+  });
+  function up(e){delete ptrs[e.pointerId];lastPinch=0;lastMid=null;}
+  el.addEventListener('pointerup',up);
+  el.addEventListener('pointercancel',up);
+  el.addEventListener('contextmenu',function(e){e.preventDefault();});
+  el.addEventListener('wheel',function(e){
+    e.preventDefault();
+    sph.radius*=(e.deltaY>0?1.1:0.9);apply();
+  },{passive:false});
+  apply();
+  function forward(d){
+    var dir=tgt.clone().sub(camera.position);dir.y=0;
+    if(dir.lengthSq()<1e-6)return;
+    dir.normalize();
+    tgt.addScaledVector(dir,d);apply();
+  }
+  function turn(a){
+    var v=tgt.clone().sub(camera.position);
+    v.applyAxisAngle(new THREE.Vector3(0,1,0),a);
+    tgt.copy(camera.position).add(v);
+    var off=camera.position.clone().sub(tgt);
+    sph.setFromVector3(off);apply();
+  }
+  function lift(d){
+    tgt.y=Math.max(0.2,Math.min(60,tgt.y+d));apply();
+  }
+  function strafe(d){
+    var right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0);
+    right.y=0;if(right.lengthSq()<1e-6)return;
+    right.normalize();
+    tgt.addScaledVector(right,d);apply();
+  }
+  function tilt(a){
+    var v=tgt.clone().sub(camera.position);
+    var right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0);
+    v.applyAxisAngle(right,a);
+    tgt.copy(camera.position).add(v);
+    var off=camera.position.clone().sub(tgt);
+    sph.setFromVector3(off);apply();
+  }
+  return {
+    get target(){return tgt;},
+    update:function(){setFromCamera();},
+    forward:forward, turn:turn, lift:lift, tilt:tilt, strafe:strafe
+  };
+})(renderer.domElement);
+
+(function(){
+  var acts={
+    fwd:  function(dt){controls.forward( 9*dt);},
+    back: function(dt){controls.forward(-9*dt);},
+    strafeL:function(dt){controls.strafe(-6*dt);},
+    strafeR:function(dt){controls.strafe( 6*dt);},
+    left: function(dt){controls.turn( 1.4*dt);},
+    right:function(dt){controls.turn(-1.4*dt);},
+    up:   function(dt){controls.lift( 4.5*dt);},
+    down: function(dt){controls.lift(-4.5*dt);},
+    tiltup:  function(dt){controls.tilt( 0.9*dt);},
+    tiltdown:function(dt){controls.tilt(-0.9*dt);}
+  };
+  var held={},raf=null,prev=0;
+  function tick(ts){
+    var dt=Math.min(0.05,(ts-prev)/1000||0.016);prev=ts;
+    var any=false;
+    for(var k in held){if(held[k]&&acts[k]){acts[k](dt);any=true;}}
+    raf=any?requestAnimationFrame(tick):null;
+  }
+  function start(k){
+    held[k]=true;
+    if(!raf){prev=performance.now();raf=requestAnimationFrame(tick);}
+  }
+  function stop(k){delete held[k];}
+  Array.prototype.forEach.call(document.querySelectorAll('.pbtn'),function(b){
+    var a=b.dataset.a;
+    b.addEventListener('pointerdown',function(e){e.preventDefault();b.setPointerCapture&&b.setPointerCapture(e.pointerId);start(a);});
+    b.addEventListener('pointerup',function(){stop(a);});
+    b.addEventListener('pointercancel',function(){stop(a);});
+    b.addEventListener('lostpointercapture',function(){stop(a);});
+  });
+  var keymap={KeyW:'fwd',KeyS:'back',KeyA:'strafeL',KeyD:'strafeR',KeyQ:'down',KeyE:'up',KeyR:'tiltup',KeyF:'tiltdown',
+              ArrowUp:'fwd',ArrowDown:'back',ArrowLeft:'left',ArrowRight:'right'};
+  window.addEventListener('keydown',function(e){
+    var a=keymap[e.code];if(a){e.preventDefault();start(a);}
+  });
+  window.addEventListener('keyup',function(e){
+    var a=keymap[e.code];if(a)stop(a);
+  });
+})();
+
+scene.add(new THREE.HemisphereLight(0x3a4356,0x14161a,0.8));
+var key=new THREE.DirectionalLight(0xffffff,0.55);
+key.position.set(10,22,14);key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.left=-25;key.shadow.camera.right=25;
+key.shadow.camera.top=25;key.shadow.camera.bottom=-25;
+scene.add(key);
+
+var demo=new THREE.Group();
+function mat(c,r,m){return new THREE.MeshStandardMaterial({color:c,roughness:(r===undefined?0.85:r),metalness:m||0});}
+function box(w,h,d,x,y,z,material){
+  var o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+  o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;demo.add(o);return o;}
+
+var hall=new THREE.Mesh(new THREE.PlaneGeometry(46,62),mat(0x1b1f26,0.95));
+hall.rotation.x=-Math.PI/2;hall.position.z=12;hall.receiveShadow=true;demo.add(hall);
+
+box(18,0.8,9, 0,0.4,-4.5, mat(0x3a3f4a));
+box(18,0.06,0.12, 0,0.83,-0.06, mat(0xd9dee8,0.4));
+box(12,0.6,2.4, 0,1.1,-7.2, mat(0x474d5a));
+box(9,0.6,1.8, 0,1.7,-7.6, mat(0x525968));
+box(6,0.6,1.4, 0,2.3,-7.9, mat(0x5d6576));
+box(10,5.6,0.25, 0,4.1,-8.9, new THREE.MeshStandardMaterial(
+  {color:0x0e4652,roughness:0.4,emissive:0x0d5f6e,emissiveIntensity:0.9}));
+box(1.4,4.6,1.4,-10.2,2.3,-2.2, mat(0x22262e));
+box(1.4,4.6,1.4, 10.2,2.3,-2.2, mat(0x22262e));
+var tm=mat(0x9aa3b2,0.5,0.6);
+box(0.35,7.6,0.35,-9.4,3.8,-1.2,tm);
+box(0.35,7.6,0.35, 9.4,3.8,-1.2,tm);
+box(19.2,0.35,0.35, 0,7.8,-1.2,tm);
+for(var i=0;i<8;i++){
+  var x=-8.4+i*2.4;
+  box(0.28,0.4,0.28, x,7.5,-1.2, mat(0x111318,0.6,0.4));
+  var beam=new THREE.Mesh(new THREE.ConeGeometry(0.9,7,20,1,true),
+    new THREE.MeshBasicMaterial({color:(i%2?0x2f7fb8:0x8a63c9),transparent:true,
+      opacity:0.10,depthWrite:false,side:THREE.DoubleSide}));
+  beam.position.set(x,3.9,-1.2+((i%2)?1.6:0.5));
+  beam.rotation.x=(i%2)?0.34:0.12;
+  demo.add(beam);
+}
+[-1,1].forEach(function(s){
+  box(2.0,0.8,12, s*5.5,0.4,6, mat(0x343945));
+  box(0.5,1.0,0.5, s*6.7,0.5,11.0, mat(0x20242c,0.6,0.3));
+  var muz=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,0.9,16),mat(0xb9c2d0,0.35,0.8));
+  muz.position.set(s*6.7,1.3,11.0);
+  muz.rotation.z=s*0.55;
+  muz.castShadow=true;demo.add(muz);
+});
+box(6,0.4,3, 0,0.2,26, mat(0x272c36));
+function figure(x,z,onStage,c){
+  var g=new THREE.Group();
+  var body=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.2,1.15,10),mat(c,0.8));
+  body.position.y=0.58+0.45;g.add(body);
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.13,12,10),mat(c,0.8));
+  head.position.y=1.52;g.add(head);
+  g.position.set(x,onStage?0.8:0,z);
+  g.traverse(function(o){o.castShadow=true});demo.add(g);
+}
+figure(0,-3,true,0xd98ca0); figure(-2.2,-3.6,true,0x8cb8d9);
+figure(2.2,-3.6,true,0xd9c78c); figure(5.5,5,true,0x9ad98c);
+figure(-3,16,false,0x6f7684); figure(3.5,18,false,0x6f7684);
+scene.add(demo);
+
+var grid=new THREE.GridHelper(45.9,51,0x3c4454,0x232833);
+grid.position.y=0.01;grid.position.z=12;grid.visible=false;scene.add(grid);
+
+var current=demo, wireOn=false;
+var meta=document.getElementById('meta');
+function setMeta(t){meta.textContent=t;}
+function countTris(root){var n=0;root.traverse(function(o){
+  if(o.isMesh&&o.geometry){var g=o.geometry;
+    n+=g.index?g.index.count/3:(g.attributes.position?g.attributes.position.count/3:0);}});
+  return Math.round(n);}
+setMeta('デモ会場 · '+countTris(demo).toLocaleString()+' tris');
+
+function frameObject(root,dir){
+  var b=new THREE.Box3().setFromObject(root);
+  if(b.isEmpty())return;
+  var c=b.getCenter(new THREE.Vector3()), s=b.getSize(new THREE.Vector3());
+  var r=Math.max(s.x,s.y,s.z);
+  var d=dir||new THREE.Vector3(0,0.45,1);
+  camera.position.copy(c).addScaledVector(d.clone().normalize(),r*1.35);
+  controls.target.copy(c);controls.update();
+}
+var views={
+  foh:  function(){camera.position.set(0,3.4,27);controls.target.set(0,2.2,-2);},
+  top:  function(){camera.position.set(0,55,7);controls.target.set(0,0,6);},
+  kami: function(){camera.position.set(-22,6,8);controls.target.set(0,1.5,0);},
+  shimo:function(){camera.position.set(22,6,8);controls.target.set(0,1.5,0);},
+  stage:function(){camera.position.set(0,2.6,-6.5);controls.target.set(0,1.5,20);}
+};
+Array.prototype.forEach.call(document.querySelectorAll('.viewbtn'),function(b){
+  b.addEventListener('click',function(){
+    if(current===demo&&views[b.dataset.v]){views[b.dataset.v]();controls.update();}
+    else{
+      var dirs={foh:[0,0.4,1],top:[0,1,0.001],kami:[-1,0.3,0.3],shimo:[1,0.3,0.3],stage:[0,0.2,-1]};
+      var d=dirs[b.dataset.v]||[0,0.4,1];
+      frameObject(current,new THREE.Vector3(d[0],d[1],d[2]));
+    }
+  });
+});
+views.foh();
+
+document.getElementById('wire').addEventListener('click',function(){
+  wireOn=!wireOn;this.classList.toggle('on',wireOn);
+  current.traverse(function(o){if(o.isMesh&&o.material&&'wireframe' in o.material)o.material.wireframe=wireOn;});
+});
+document.getElementById('grid').addEventListener('click',function(){
+  grid.visible=!grid.visible;this.classList.toggle('on',grid.visible);
+});
+document.getElementById('fs').addEventListener('click',function(){
+  try{
+    if(document.fullscreenElement){document.exitFullscreen().catch(function(){});}
+    else if(document.documentElement.requestFullscreen){
+      document.documentElement.requestFullscreen().catch(function(){});}
+  }catch(e){}
+});
+
+var loaded=null;
+function showDemo(){
+  if(loaded){scene.remove(loaded);loaded=null;}
+  demo.visible=true;grid.visible=true;current=demo;
+  document.getElementById('grid').classList.add('on');
+  setMeta('デモ会場 · '+countTris(demo).toLocaleString()+' tris');
+  views.foh();
+}
+document.getElementById('demoBtn').addEventListener('click',showDemo);
+
+(function(){
+  function fetchPart(p, tries){
+    return fetch(p,{cache:'no-store'}).then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status+' '+p);
+      return r.arrayBuffer();
+    }).catch(function(e){
+      if(tries>0)return fetchPart(p,tries-1);
+      throw e;
+    });
+  }
+  fetch('model.meta.json?v='+Date.now(),{cache:'no-store'}).then(function(r){
+    if(!r.ok)throw new Error('meta HTTP '+r.status);return r.json();
+  }).then(function(meta){
+    var got=0,total=meta.parts.length;
+    setMeta('モデル取得中… 0/'+total);
+    return Promise.all(meta.parts.map(function(p,idx){
+      return fetchPart(p,2).then(function(buf){
+        got++;setMeta('モデル取得中… '+got+'/'+total);
+        return {idx:idx,buf:buf};
+      });
+    })).then(function(chunks){
+      chunks.sort(function(a,b){return a.idx-b.idx;});
+      var len=0;chunks.forEach(function(c){len+=c.buf.byteLength;});
+      if(meta.bytes&&len!==meta.bytes)
+        throw new Error('サイズ不一致 '+len+'/'+meta.bytes);
+      var all=new Uint8Array(len),off=0;
+      chunks.forEach(function(c){all.set(new Uint8Array(c.buf),off);off+=c.buf.byteLength;});
+      var dv=new DataView(all.buffer);
+      if(dv.getUint32(0,true)!==0x46546C67)
+        throw new Error('GLBマジック不正 '+dv.getUint32(0,true).toString(16));
+      if(!THREE.GLTFLoader)throw new Error('GLTFLoader未ロード(CDN遮断?)');
+      setMeta('モデル解析中… '+(len/1e6).toFixed(1)+'MB');
+      new THREE.GLTFLoader().parse(all.buffer,'',function(g){
+        g.scene.userData.keepTransform=true;
+        addLoaded(g.scene, meta.name||'model');
+        fetch('scene_extra.json').then(function(r){return r.json();})
+          .then(function(x){applyBlenderScene(g.scene,x);})
+          .catch(function(e){setMeta('照明適用失敗: '+(e&&e.message||e));});
+      },function(e){
+        setMeta('解析失敗: '+((e&&(e.message||e.toString()))||'不明').slice(0,120));
+      });
+    });
+  }).catch(function(e){
+    setMeta('読込失敗: '+((e&&(e.message||e.toString()))||'不明').slice(0,120));
+  });
+})();
+
+function addLoaded(obj,name){
+  if(loaded)scene.remove(loaded);
+  demo.visible=false;
+  obj.traverse(function(o){if(o.isMesh){o.castShadow=o.receiveShadow=true;
+    if(o.material&&'wireframe' in o.material)o.material.wireframe=wireOn;}});
+  if(!obj.userData.keepTransform){
+    var b=new THREE.Box3().setFromObject(obj);
+    var s=b.getSize(new THREE.Vector3());
+    var maxDim=Math.max(s.x,s.y,s.z)||1;
+    if(maxDim>200||maxDim<0.5){obj.scale.multiplyScalar(20/maxDim);}
+    b.setFromObject(obj);
+    obj.position.y-=b.min.y;
+    var c=b.getCenter(new THREE.Vector3());
+    obj.position.x-=c.x;obj.position.z-=c.z;
+  }
+  loaded=obj;current=obj;scene.add(obj);
+  setMeta(name+' · '+countTris(obj).toLocaleString()+' tris');
+  frameObject(obj);
+}
+function loadFile(file){
+  var name=file.name, ext=name.split('.').pop().toLowerCase();
+  var reader=new FileReader();
+  setMeta('読み込み中… '+name);
+  reader.onerror=function(){setMeta('読み込み失敗: '+name);};
+  reader.onload=function(){
+    try{
+      if((ext==='glb'||ext==='gltf')&&!THREE.GLTFLoader){setMeta('glTF読込機能が利用できない環境です');}else if(ext==='glb'||ext==='gltf'){
+        new THREE.GLTFLoader().parse(reader.result,'',function(g){addLoaded(g.scene,name);},
+          function(){setMeta('glTF解析失敗: '+name);});
+      }else if(ext==='obj'&&!THREE.OBJLoader){setMeta('OBJ読込機能が利用できない環境です');}else if(ext==='obj'){
+        var text=new TextDecoder().decode(reader.result);
+        addLoaded(new THREE.OBJLoader().parse(text),name);
+      }else if(ext==='stl'&&!THREE.STLLoader){setMeta('STL読込機能が利用できない環境です');}else if(ext==='stl'){
+        var geo=new THREE.STLLoader().parse(reader.result);
+        geo.computeVertexNormals();
+        addLoaded(new THREE.Mesh(geo,mat(0xb9c2d0,0.6,0.15)),name);
+      }else{
+        setMeta('未対応形式: .'+ext+'（glb/gltf/obj/stl対応）');
+      }
+    }catch(e){setMeta('解析エラー: '+name);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+document.getElementById('file').addEventListener('change',function(){
+  if(this.files&&this.files[0])loadFile(this.files[0]);
+  this.value='';
+});
+var drop=document.getElementById('drop'),dragDepth=0;
+window.addEventListener('dragenter',function(e){e.preventDefault();dragDepth++;drop.classList.add('show');});
+window.addEventListener('dragover',function(e){e.preventDefault();});
+window.addEventListener('dragleave',function(e){e.preventDefault();if(--dragDepth<=0){dragDepth=0;drop.classList.remove('show');}});
+window.addEventListener('drop',function(e){
+  e.preventDefault();dragDepth=0;drop.classList.remove('show');
+  if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);
+});
+
+var blenderCams=null;
+function applyBlenderScene(root,x){
+  if(THREE.RectAreaLightUniformsLib){try{THREE.RectAreaLightUniformsLib.init();}catch(e){}}
+  scene.children.slice().forEach(function(o){
+    if(o.isHemisphereLight||o.isDirectionalLight)scene.remove(o);
+  });
+  scene.add(new THREE.AmbientLight(0x262a33,0.22));
+  var wc=(x.world&&x.world.color)||[0.01,0.01,0.012];
+  scene.background=new THREE.Color(wc[0],wc[1],wc[2]);
+  scene.fog=null;
+  function cv(v){return new THREE.Vector3(v[0],v[2],-v[1]);}
+  var K=(x.lm_per_watt||60.0);
+  (x.lights||[]).forEach(function(L){
+    if(!L.energy)return;
+    var col=new THREE.Color(L.color[0],L.color[1],L.color[2]);
+    var pos=cv(L.loc), dir=cv(L.dir);
+    if(L.type==='AREA'){
+      var ang=Math.min(1.35, 0.55+0.12*Math.max(L.size||1,L.size_y||1));
+      var s=new THREE.SpotLight(col,1,0,ang,0.9,2);
+      s.power=L.energy*K;
+      s.position.copy(pos);
+      s.target.position.copy(pos.clone().add(dir.clone().multiplyScalar(10)));
+      scene.add(s);scene.add(s.target);
+    }else if(L.type==='SPOT'){
+      var sp=new THREE.SpotLight(col,1,0,(L.spot_size||1.2)/2,Math.max(0.2,L.blend||0.3),2);
+      sp.power=L.energy*K;
+      sp.position.copy(pos);
+      sp.target.position.copy(pos.clone().add(dir.clone().multiplyScalar(10)));
+      scene.add(sp);scene.add(sp.target);
+    }else if(L.type==='POINT'){
+      var p=new THREE.PointLight(col,1,0,2);
+      p.power=L.energy*K;
+      p.position.copy(pos);scene.add(p);
+    }else if(L.type==='SUN'){
+      var d=new THREE.DirectionalLight(col,L.energy);
+      d.position.copy(pos);scene.add(d);
+    }
+  });
+  var mats=x.materials||{};
+  root.traverse(function(o){
+    if(!o.isMesh||!o.material)return;
+    var arr=Array.isArray(o.material)?o.material:[o.material];
+    arr.forEach(function(m){
+      var info=mats[m.name];
+      if(info&&m.emissive){
+        m.emissive.setRGB(info.emission_color[0],info.emission_color[1],info.emission_color[2]);
+        m.emissiveIntensity=Math.min(30,Math.max(1,info.emission_strength));
+        if(m.emissiveMap)m.emissiveIntensity=Math.min(12,m.emissiveIntensity);
+        m.toneMapped=true;
+      }
+    });
+  });
+  blenderCams=x.cameras||null;
+  var order=['01_北半球の天井','02_正面からの天井','06_中央投映機','03_星空の空間','04_鳥瞰配置'];
+  var btns=document.querySelectorAll('.viewbtn');
+  var labels=['天井','正面','投映機','星空','鳥瞰'];
+  Array.prototype.forEach.call(btns,function(b,i){
+    var cn=order[i];
+    if(!cn||!blenderCams[cn])return;
+    b.textContent=labels[i];
+    b.onclick=function(){
+      var c=blenderCams[cn];
+      var p=cv(c.loc),f=cv(c.fwd);
+      camera.position.copy(p);
+      controls.target.copy(p.clone().add(f.multiplyScalar(12)));
+      var hf=2*Math.atan((c.sensor/2)/c.lens);
+      camera.fov=2*Math.atan(Math.tan(hf/2)/camera.aspect)*180/Math.PI;
+      camera.updateProjectionMatrix();
+      controls.update();
+    };
+  });
+  var ac=x.active_camera;
+  if(ac&&blenderCams[ac]){
+    var c=blenderCams[ac],p=cv(c.loc),f=cv(c.fwd);
+    camera.position.copy(p);
+    controls.target.copy(p.clone().add(f.multiplyScalar(12)));
+    var hf0=2*Math.atan((c.sensor/2)/c.lens);
+    camera.fov=2*Math.atan(Math.tan(hf0/2)/camera.aspect)*180/Math.PI;
+    camera.updateProjectionMatrix();
+    controls.update();
+  }
+  setMeta((document.getElementById('meta').textContent||'')+' · Blender照明適用');
+}
+
+function resize(){
+  var w=app.clientWidth,h=app.clientHeight;
+  renderer.setSize(w,h,true);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);resize();
+var clock=new THREE.Clock();
+(function loop(){
+  requestAnimationFrame(loop);
+  var t=clock.getElapsedTime();
+  demo.traverse(function(o){
+    if(o.material&&o.material.emissive&&o.material.emissiveIntensity)
+      o.material.emissiveIntensity=0.75+0.25*Math.sin(t*1.3);
+  });
+  renderer.render(scene,camera);
+})();
+window.DBG={scene:scene,camera:camera,controls:controls,renderer:renderer,
+  getLoaded:function(){return loaded;}};
+})();
+</script>
+
+</body></html>
