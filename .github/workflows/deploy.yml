@@ -16,7 +16,7 @@ jobs:
           mkdir site
           cp index.html model.meta.json scene_extra.json site/
           cd site
-          curl -fL "https://drive.usercontent.google.com/download?id=1WLKRGkX-81mZbrO2eMJsmjTALK4Zmr5b&export=download&confirm=t" -o model-23029ae8.p0.wasm
+          curl -fL "https://drive.usercontent.google.com/download?id=1JhzdapS7-Fd-ydt3iIyMamNwZMdW_SMt&export=download&confirm=t" -o model-23029ae8.p0.wasm
           touch .nojekyll
           ls -la
       - uses: actions/configure-pages@v5
