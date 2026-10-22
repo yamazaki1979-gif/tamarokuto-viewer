@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=robots content="noindex,nofollow"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>nayuta 多摩六都 天井演出ビュー</title>
 <style>
 :root{
@@ -366,11 +366,11 @@ function showDemo(){
 }
 document.getElementById('demoBtn').addEventListener('click',showDemo);
 
-(function(){
+function startLoad(ENCKEY){
   function fetchPart(p, tries){
     return fetch(p,{cache:'no-store'}).then(function(r){
       if(!r.ok)throw new Error('HTTP '+r.status+' '+p);
-      return r.arrayBuffer();
+      return r.arrayBuffer().then(function(b){return decShield(ENCKEY,b);});
     }).catch(function(e){
       if(tries>0)return fetchPart(p,tries-1);
       throw e;
@@ -411,7 +411,8 @@ document.getElementById('demoBtn').addEventListener('click',showDemo);
   }).catch(function(e){
     setMeta('読込失敗: '+((e&&(e.message||e.toString()))||'不明').slice(0,120));
   });
-})();
+}
+window.startLoad=startLoad;
 
 function addLoaded(obj,name){
   if(loaded)scene.remove(loaded);
@@ -574,4 +575,33 @@ window.DBG={scene:scene,camera:camera,controls:controls,renderer:renderer,
 })();
 </script>
 
+<div id="pwgate" style="position:fixed;inset:0;z-index:9999;background:#0b0c10;display:flex;align-items:center;justify-content:center">
+ <div style="text-align:center;font-family:system-ui,-apple-system,'Hiragino Sans',sans-serif">
+  <div style="color:#dfe3ea;font-size:15px;margin-bottom:14px">パスワードを入力してください</div>
+  <input id="pwin" type="password" autocomplete="off" style="font-size:16px;padding:10px 12px;border-radius:8px;border:1px solid #39404d;background:#171a20;color:#eef1f6;width:190px;text-align:center">
+  <button id="pwbtn" style="font-size:15px;padding:10px 18px;margin-left:8px;border-radius:8px;border:0;background:#3b82f6;color:#fff;cursor:pointer">開く</button>
+  <div id="pwerr" style="color:#f87171;font-size:13px;margin-top:12px;min-height:16px"></div>
+ </div>
+</div>
+<script>
+var ENC_SALT='nayuta-v1', ENC_CHECK='RU5DMfg9CwinJ64zvhkJ3Ki2mZQEq1vxEXiW98H5vUur6g==';
+function b64u8(s){return Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)});}
+function deriveKey(pw){return crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']).then(function(km){return crypto.subtle.deriveKey({name:'PBKDF2',salt:new TextEncoder().encode(ENC_SALT),iterations:300000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);});}
+function decShield(key,buf){var u=new Uint8Array(buf);if(u.length<17||u[0]!==69||u[1]!==78||u[2]!==67||u[3]!==49)return Promise.resolve(buf);return crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(4,16)},key,u.slice(16));}
+(function(){
+  var inp=document.getElementById('pwin'),btn=document.getElementById('pwbtn'),err=document.getElementById('pwerr'),gate=document.getElementById('pwgate');
+  function go(){
+    var pw=inp.value;if(!pw)return;
+    err.textContent='';btn.disabled=true;btn.textContent='確認中…';
+    deriveKey(pw).then(function(k){
+      return decShield(k,b64u8(ENC_CHECK)).then(function(){
+        gate.style.display='none';startLoad(k);
+      });
+    }).catch(function(){err.textContent='パスワードが違います';btn.disabled=false;btn.textContent='開く';inp.select();});
+  }
+  btn.addEventListener('click',go);
+  inp.addEventListener('keydown',function(e){if(e.key==='Enter')go();});
+  inp.focus();
+})();
+</script>
 </body></html>
