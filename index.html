@@ -43,7 +43,7 @@ input[type=file]{display:none}
   <span class="chip" id="brand">nayuta 多摩六都 天井演出 <small>Blender v02より変換｜YBJ Stage Viewer</small></span>
   <label class="chip" for="file">図面3Dを開く (glb/obj/stl)</label>
   <input type="file" id="file" accept=".glb,.gltf,.obj,.stl">
-  <span class="chip" id="demoBtn">デモ会場に戻す</span>
+  <span class="chip" id="demoBtn" style="display:none">デモ会場に戻す</span>
 </div>
 <div class="bar" id="bottom">
   <span class="chip viewbtn" data-v="foh">FOH</span>
@@ -299,7 +299,7 @@ function figure(x,z,onStage,c){
 figure(0,-3,true,0xd98ca0); figure(-2.2,-3.6,true,0x8cb8d9);
 figure(2.2,-3.6,true,0xd9c78c); figure(5.5,5,true,0x9ad98c);
 figure(-3,16,false,0x6f7684); figure(3.5,18,false,0x6f7684);
-scene.add(demo);
+demo.visible=false;scene.add(demo);
 
 var grid=new THREE.GridHelper(45.9,51,0x3c4454,0x232833);
 grid.position.y=0.01;grid.position.z=12;grid.visible=false;scene.add(grid);
@@ -311,7 +311,7 @@ function countTris(root){var n=0;root.traverse(function(o){
   if(o.isMesh&&o.geometry){var g=o.geometry;
     n+=g.index?g.index.count/3:(g.attributes.position?g.attributes.position.count/3:0);}});
   return Math.round(n);}
-setMeta('デモ会場 · '+countTris(demo).toLocaleString()+' tris');
+setMeta('モデル読込待ち…');
 
 function frameObject(root,dir){
   var b=new THREE.Box3().setFromObject(root);
